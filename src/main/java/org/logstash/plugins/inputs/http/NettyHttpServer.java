@@ -16,6 +16,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static org.logstash.plugins.inputs.http.util.DaemonThreadFactory.daemonThreadFactory;
+import co.elastic.logstash.api.NamespacedMetric;
 
 /**
  * Created by joaoduarte on 11/10/2017.
@@ -29,10 +30,11 @@ public class NettyHttpServer implements Runnable, Closeable {
     private final EventLoopGroup processorGroup;
     private final ThreadPoolExecutor executorGroup;
     private final HttpResponseStatus responseStatus;
+    private final NamespacedMetric metric;
 
     public NettyHttpServer(String host, int port, IMessageHandler messageHandler,
                            SslHandlerProvider sslHandlerProvider, int threads,
-                           int maxPendingRequests, int maxContentLength, int responseCode)
+                           int maxPendingRequests, int maxContentLength, int responseCode, NamespacedMetric metric)
     {
         this.host = host;
         this.port = port;
@@ -44,11 +46,13 @@ public class NettyHttpServer implements Runnable, Closeable {
                 new CustomRejectedExecutionHandler());
 
         final HttpInitializer httpInitializer = new HttpInitializer(messageHandler, executorGroup,
-                                                                      maxContentLength, responseStatus);
+                                                                      maxContentLength, responseStatus, metric);
 
         if (sslHandlerProvider != null) {
             httpInitializer.enableSSL(sslHandlerProvider);
         }
+
+        this.metric = metric;
 
         serverBootstrap = new ServerBootstrap()
                 .group(processorGroup)

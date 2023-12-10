@@ -14,6 +14,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.logstash.plugins.inputs.http.util.RejectableRunnable;
+import co.elastic.logstash.api.NamespacedMetric;
 
 import java.nio.charset.Charset;
 import java.util.HashMap;
@@ -28,19 +29,25 @@ public class MessageProcessor implements RejectableRunnable {
 
     private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
     private final static Logger LOGGER = LogManager.getLogger(MessageHandler.class);
+    private final NamespacedMetric metric;
+    public static final String TOO_MANY_REQUESTS = "too_many_requests";
+    public static final String UNAUTHORIZED = "unauthorized_requests";
+    public static final String INTERNAL_SERVER_ERROR = "internal_server_error";
 
     MessageProcessor(ChannelHandlerContext ctx, FullHttpRequest req, String remoteAddress,
-                            IMessageHandler messageHandler, HttpResponseStatus responseStatus) {
+                            IMessageHandler messageHandler, HttpResponseStatus responseStatus, NamespacedMetric metric) {
         this.ctx = ctx;
         this.req = req;
         this.remoteAddress = remoteAddress;
         this.messageHandler = messageHandler;
         this.responseStatus = responseStatus;
+        this.metric = metric;
     }
 
     public void onRejection() {
         try {
             final FullHttpResponse response = generateFailedResponse(HttpResponseStatus.TOO_MANY_REQUESTS);
+            this.metric.increment(TOO_MANY_REQUESTS);
             ctx.writeAndFlush(response);
         } finally {
             req.release();
@@ -54,6 +61,7 @@ public class MessageProcessor implements RejectableRunnable {
             if (messageHandler.requiresToken() && !req.headers().contains(HttpHeaderNames.AUTHORIZATION)) {
                 LOGGER.debug("Required authorization not provided; requesting authentication.");
                 response = generateAuthenticationRequestResponse();
+                this.metric.increment(UNAUTHORIZED);
             } else {
                 final String token = req.headers().get(HttpHeaderNames.AUTHORIZATION);
                 req.headers().remove(HttpHeaderNames.AUTHORIZATION);
@@ -63,6 +71,7 @@ public class MessageProcessor implements RejectableRunnable {
                 } else {
                     LOGGER.debug("Invalid authorization; rejecting request.");
                     response = generateFailedResponse(HttpResponseStatus.UNAUTHORIZED);
+                    this.metric.increment(UNAUTHORIZED);
                 }
             }
             ctx.writeAndFlush(response);
@@ -77,6 +86,7 @@ public class MessageProcessor implements RejectableRunnable {
         if (messageHandler.onNewMessage(remoteAddress, formattedHeaders, body)) {
             return generateResponse(messageHandler.responseHeaders());
         } else {
+            this.metric.increment(INTERNAL_SERVER_ERROR);
             return generateFailedResponse(HttpResponseStatus.INTERNAL_SERVER_ERROR);
         }
     }

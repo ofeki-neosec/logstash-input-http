@@ -14,6 +14,7 @@ import java.net.InetSocketAddress;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import static io.netty.buffer.Unpooled.copiedBuffer;
+import co.elastic.logstash.api.NamespacedMetric;
 
 /**
  * Created by joaoduarte on 11/10/2017.
@@ -23,19 +24,21 @@ public class HttpServerHandler extends SimpleChannelInboundHandler<FullHttpReque
     private final IMessageHandler messageHandler;
     private final ThreadPoolExecutor executorGroup;
     private final HttpResponseStatus responseStatus;
+    private final NamespacedMetric metric;
 
     public HttpServerHandler(IMessageHandler messageHandler, ThreadPoolExecutor executorGroup,
-                             HttpResponseStatus responseStatus) {
+                             HttpResponseStatus responseStatus, NamespacedMetric metric) {
         this.messageHandler = messageHandler;
         this.executorGroup = executorGroup;
         this.responseStatus = responseStatus;
+        this.metric = metric;
     }
 
     @Override
     public void channelRead0(ChannelHandlerContext ctx, FullHttpRequest msg) {
         final String remoteAddress = ((InetSocketAddress) ctx.channel().remoteAddress()).getAddress().getHostAddress();
         msg.retain();
-        final MessageProcessor messageProcessor = new MessageProcessor(ctx, msg, remoteAddress, messageHandler, responseStatus);
+        final MessageProcessor messageProcessor = new MessageProcessor(ctx, msg, remoteAddress, messageHandler, responseStatus, metric);
         executorGroup.execute(messageProcessor);
     }
 

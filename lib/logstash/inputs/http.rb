@@ -217,7 +217,7 @@ class LogStash::Inputs::Http < LogStash::Inputs::Base
 
     require "logstash/inputs/http/message_handler"
     message_handler = MessageHandler.new(self, @codec, @codecs, @auth_token)
-    @http_server = create_http_server(message_handler)
+    @http_server = create_http_server(message_handler, metric)
 
     @remote_host_target_field ||= ecs_select[disabled: "host", v1: "[host][ip]"]
     @request_headers_target_field ||= ecs_select[disabled: "headers", v1: "[@metadata][input][http][request][headers]"]
@@ -389,9 +389,9 @@ class LogStash::Inputs::Http < LogStash::Inputs::Base
     SSL_VERIFY_MODE_TO_CLIENT_AUTHENTICATION_MAP[deprecated_value]
   end
 
-  def create_http_server(message_handler)
+  def create_http_server(message_handler, metric)
     org.logstash.plugins.inputs.http.NettyHttpServer.new(
-      @host, @port, message_handler, build_ssl_params, @threads, @max_pending_requests, @max_content_length, @response_code)
+      @host, @port, message_handler, build_ssl_params, @threads, @max_pending_requests, @max_content_length, @response_code, metric)
   end
 
   def build_ssl_params
