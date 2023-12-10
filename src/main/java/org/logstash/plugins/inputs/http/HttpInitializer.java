@@ -27,7 +27,7 @@ public class HttpInitializer extends ChannelInitializer<SocketChannel> {
     private final ThreadPoolExecutor executorGroup;
     private final NamespacedMetric metric;
     private final AtomicInteger currentConnections = new AtomicInteger(0);
-    private final AtomicInteger peakConnections = new AtomicInteger(0);
+    private int peakConnections = 0;
     public static final String CURRENT_CONNECTIONS = "current_connections";
     public static final String PEAK_CONNECTIONS = "peak_connections";
 
@@ -42,8 +42,8 @@ public class HttpInitializer extends ChannelInitializer<SocketChannel> {
 
     protected void initChannel(SocketChannel socketChannel) throws Exception {
         int currentConnections = this.currentConnections.incrementAndGet();
-        if (currentConnections > this.peakConnections.get()) {
-            this.peakConnections.set(currentConnections);
+        if (currentConnections > this.peakConnections) {
+            this.peakConnections = currentConnections;
             metric.gauge(PEAK_CONNECTIONS, currentConnections);
         }
         metric.gauge(CURRENT_CONNECTIONS, currentConnections);
