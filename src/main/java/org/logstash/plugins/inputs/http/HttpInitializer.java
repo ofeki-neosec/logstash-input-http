@@ -41,14 +41,12 @@ public class HttpInitializer extends ChannelInitializer<SocketChannel> {
     }
 
     protected void initChannel(SocketChannel socketChannel) throws Exception {
-        synchronized (this) {
-            int currentConnections = this.currentConnections.incrementAndGet();
-            if (currentConnections > this.peakConnections.get()) {
-                this.peakConnections.set(currentConnections);
-                metric.gauge(PEAK_CONNECTIONS, currentConnections);
-            }
-            metric.gauge(CURRENT_CONNECTIONS, currentConnections);
+        int currentConnections = this.currentConnections.incrementAndGet();
+        if (currentConnections > this.peakConnections.get()) {
+            this.peakConnections.set(currentConnections);
+            metric.gauge(PEAK_CONNECTIONS, currentConnections);
         }
+        metric.gauge(CURRENT_CONNECTIONS, currentConnections);
 
         ChannelPipeline pipeline = socketChannel.pipeline();
 
@@ -62,9 +60,7 @@ public class HttpInitializer extends ChannelInitializer<SocketChannel> {
         pipeline.addLast(new HttpServerHandler(messageHandler.copy(), executorGroup, responseStatus, metric));
 
         socketChannel.closeFuture().addListener((ChannelFutureListener) future -> {
-            synchronized (HttpInitializer.this) {
-                metric.gauge(CURRENT_CONNECTIONS, this.currentConnections.decrementAndGet());
-            }
+            metric.gauge(CURRENT_CONNECTIONS, this.currentConnections.decrementAndGet());
         });
     }
 
